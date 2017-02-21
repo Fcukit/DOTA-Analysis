@@ -1,0 +1,291 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [],
+   "source": [
+    "import pandas\n",
+    "import numpy as np\n",
+    "from sklearn.ensemble import GradientBoostingClassifier\n",
+    "from sklearn.model_selection import cross_val_score\n",
+    "from sklearn.model_selection import KFold\n",
+    "from sklearn.preprocessing import StandardScaler\n",
+    "from sklearn.linear_model import LogisticRegression\n",
+    "from sklearn.linear_model import LogisticRegressionCV\n",
+    "import time\n",
+    "import datetime\n",
+    "#Считайте таблицу с признаками из файла features.csv с помощью кода, приведенного выше. \n",
+    "features = pandas.read_csv('./features.csv', index_col='match_id')\n",
+    "#Удалите признаки, связанные с итогами матча \n",
+    "features.drop(['duration','tower_status_radiant','tower_status_dire','barracks_status_radiant','barracks_status_dire'],inplace=True,axis=1)\n",
+    "#Замените пропуски на нули с помощью функции fillna()\n",
+    "def fillNaElements(features):\n",
+    "    max_time = 1000.0\n",
+    "    not_exist_team = 2\n",
+    "    not_exist_payer = 10\n",
+    "    features.update(features[['first_blood_time','radiant_bottle_time',\n",
+    "                     'radiant_courier_time','radiant_flying_courier_time',\n",
+    "                     'radiant_first_ward_time','dire_bottle_time',\n",
+    "                     'dire_courier_time','dire_flying_courier_time',\n",
+    "                     'dire_first_ward_time']].fillna(max_time))\n",
+    "    features.update(features[['first_blood_player1','first_blood_player2']].fillna(not_exist_payer))\n",
+    "    features.update(features['first_blood_team'].fillna(not_exist_team))\n",
+    "fillNaElements(features)    \n",
+    "features_samples = features.sample(frac=1)\n",
+    "#Какой столбец содержит целевую переменную? Запишите его название - 'radiant_win'\n",
+    "y = features_samples['radiant_win'];\n",
+    "features_samples.drop(['radiant_win'],inplace=True,axis=1)\n",
+    "X = features_samples\n",
+    "scaler = StandardScaler()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "10 0.667877903233 [ 0.67504424  0.66822206  0.66848939  0.65753627  0.67009755]\n",
+      "Time elapsed: 0:00:37.648752\n",
+      "20 0.68316064721 [ 0.67965974  0.68459125  0.68632987  0.6880296   0.67719277]\n",
+      "Time elapsed: 0:01:06.136803\n",
+      "30 0.690364936594 [ 0.68800879  0.68882808  0.69591099  0.68295832  0.6961185 ]\n",
+      "Time elapsed: 0:01:37.498372\n",
+      "60 0.700381409121 [ 0.69788478  0.7006776   0.70046837  0.70285331  0.70002298]\n",
+      "Time elapsed: 0:03:05.847926\n",
+      "120 0.708374448781 [ 0.70995872  0.70352831  0.71064798  0.7115015   0.70623573]\n",
+      "Time elapsed: 0:06:26.523181\n"
+     ]
+    }
+   ],
+   "source": [
+    "kf = KFold(n_splits=5, shuffle=True)\n",
+    "score = np.empty((3,2))\n",
+    "start_time = 0\n",
+    "for i in [10, 20, 30, 60, 120]:\n",
+    "    clf = GradientBoostingClassifier(n_estimators=i, verbose=False)\n",
+    "    start_time = datetime.datetime.now()\n",
+    "    c_v = cross_val_score(clf, X, y, cv=kf, scoring='roc_auc')\n",
+    "    print '{} {} {}'.format(i, np.mean(c_v), c_v)\n",
+    "    print 'Time elapsed:', datetime.datetime.now() - start_time\n",
+    "    \n",
+    "#Какие признаки имеют пропуски среди своих значений?\n",
+    "# >>               'first_blood_time','radiant_bottle_time',\n",
+    "#                 'radiant_courier_time','radiant_flying_courier_time',\n",
+    "#                 'radiant_first_ward_time','dire_bottle_time',\n",
+    "#                 'dire_courier_time','dire_flying_courier_time',\n",
+    "#                 'dire_first_ward_time','first_blood_player1','first_blood_player2',\n",
+    "#                 'first_blood_team'\n",
+    "#Что могут означать пропуски в этих признаках (ответьте на этот вопрос для двух любых признаков)?\n",
+    "# >>  для 'first_blood_time' что этого события еще не произошло, \n",
+    "# >>  для first_blood_player1 - не было first_blood нет и плеера\n",
+    "#Как называется столбец, содержащий целевую переменную?\n",
+    "# >>'radiant_win'\n",
+    "# Как долго проводилась кросс-валидация для градиентного бустинга с 30 деревьями?\n",
+    "# >> 1.36 мин\n",
+    "# Какое качество при этом получилось?\n",
+    "# >> 0.69\n",
+    "# Имеет ли смысл использовать больше 30 деревьев в градиентном бустинге?\n",
+    "# >> При использовании числа деревьев больше 30 качество предсказания увеличивается не значительною\n",
+    "# Что бы вы предложили делать, чтобы ускорить его обучение при увеличении количества деревьев?\n",
+    "# >> Испльзовать для обучения и кросс-валидации не всю выборку, а некоторое ее подмножеств"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "roc_auc = 0.716250351295, C = 0.01\n"
+     ]
+    }
+   ],
+   "source": [
+    "# линейные алгоритмы чувствительны к масштабу признаков, нужнно отмасштабировать их\n",
+    "X_scaled = scaler.fit_transform(X)\n",
+    "# Оцените качество логистической регрессии с L2-регуляризацией с\n",
+    "# помощью кросс-валидации по той же схеме, которая использовалась для градиентного бустинга\n",
+    "def regression(X_scaled):\n",
+    "    searchCV = LogisticRegressionCV(\n",
+    "    Cs=list(np.power(10.0, np.arange(-10, 10)))\n",
+    "    ,penalty='l2'\n",
+    "    ,scoring='roc_auc'\n",
+    "    ,cv=5 #KFlod\n",
+    "    ,max_iter=10000\n",
+    "    ,fit_intercept=True\n",
+    "    )\n",
+    "    searchCV.fit(X_scaled, y)\n",
+    "    print 'roc_auc = {}, C = {}'.format(searchCV.scores_[1].mean(axis=0).max(),searchCV.C_[0])\n",
+    "#     kf = KFold(n_splits=5, shuffle=True)\n",
+    "#     l = list(np.power(10.0, np.arange(-3, 3)))\n",
+    "#     for i in l:\n",
+    "#         regression = LogisticRegression(C=i)\n",
+    "#         c_v = cross_val_score(regression, X_scaled, y, cv=kf, scoring='roc_auc')\n",
+    "#         print '{} {} {}'.format(i, np.mean(c_v), c_v)\n",
+    "regression(X_scaled)\n",
+    "# Подберите при этом лучший параметр регуляризации (C). \n",
+    "# Какое наилучшее качество у вас получилось? \n",
+    "# >> 0.716\n",
+    "# Как оно соотносится с качеством градиентного бустинга? \n",
+    "# Равно градиентному бустингу на большом количестве деревьев\n",
+    "# Быстрее ли работает логистическая регрессия по сравнению с градиентным бустингом?\n",
+    "# Да, быстрее"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "# Уберите из выборки категориальные признаки выборки\n",
+    "def dropCategorialFeaturesAndScale(X):\n",
+    "    X_temp = X.copy()\n",
+    "    X_temp.drop(['lobby_type','r1_hero','r2_hero','r3_hero','r4_hero','r5_hero','d1_hero','d2_hero','d3_hero','d4_hero','d5_hero'],inplace=True,axis=1)\n",
+    "    return scaler.fit_transform(X_temp)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "roc_auc = 0.716280893973, C = 0.01\n"
+     ]
+    }
+   ],
+   "source": [
+    "X_temp_scaled = dropCategorialFeaturesAndScale(X)\n",
+    "regression(X_temp_scaled)\n",
+    "#Как влияет на качество логистической регрессии удаление категориальных признаков (укажите новое значение метрики качества)? \n",
+    "# Практически не влияет - 0.716"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "H_c = X['d1_hero'].unique().max()\n",
+    "# Сколько различных идентификаторов героев существует в данной игре?\n",
+    "# 112\n",
+    "def transformCatX(X_p, H_c):\n",
+    "    X_pick = np.zeros((X_p.shape[0], H_c))\n",
+    "    for i, match_id in enumerate(X_p.index):\n",
+    "        for p in xrange(5):\n",
+    "            X_pick[i, X_p.ix[match_id, 'r%d_hero' % (p+1)]-1] = 1\n",
+    "            X_pick[i, X_p.ix[match_id, 'd%d_hero' % (p+1)]-1] = -1\n",
+    "    return X_pick"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "roc_auc = 0.752111085884, C = 0.1\n"
+     ]
+    }
+   ],
+   "source": [
+    "X_temp_scaled_add = np.concatenate((X_temp_scaled, transformCatX(X, H_c)), axis=1)\n",
+    "regression(X_temp_scaled_add) \n",
+    "# Какое получилось качество при добавлении \"мешка слов\" по героям?\n",
+    "# 0.752\n",
+    "# Улучшилось ли оно по сравнению с предыдущим вариантом? Чем вы можете это объяснить?\n",
+    "# Да улучшилось, потому что мы правильным образом переобразовали категориальные признаки в числовые "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "0.996599337556 0.00716500827435\n"
+     ]
+    }
+   ],
+   "source": [
+    "model = LogisticRegression(C=0.1)\n",
+    "model.fit(X_temp_scaled_add, y)\n",
+    "X_test = pandas.read_csv('./features_test.csv', index_col='match_id')\n",
+    "\n",
+    "#prepare X_test\n",
+    "fillNaElements(X_test)\n",
+    "X_test_scaled = dropCategorialFeaturesAndScale(X_test)\n",
+    "X_test_scaled_add = np.concatenate((X_test_scaled, transformCatX(X_test, H_c)), axis=1)\n",
+    "y_test = model.predict_proba(X_test_scaled_add)[:, 1]\n",
+    "print y_test.max(), y_test.min()    \n",
+    "result = pandas.DataFrame({'radiant_win': y_test}, index=X_test.index)\n",
+    "result.index.name = 'match_id'\n",
+    "result.to_csv('./kaggle.csv')"
+   ]
+  },
+  {
+   "cell_type": "raw",
+   "metadata": {},
+   "source": [
+    "На Kaggle результат предсказаний на тестовой выборке 0.75548"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 2",
+   "language": "python",
+   "name": "python2"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 2
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython2",
+   "version": "2.7.12"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 1
+}
